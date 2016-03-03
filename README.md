@@ -21,8 +21,7 @@ You can use `go get -u -a` for update all installed packages.
          options := memcache.ConnectionOptions{
              Timeout: time.Duration(100) * time.Millisecond,
              MaxIdleConnsPerAddr: 200,
-             ShardFunc: myCustomSharding
-             
+             ShardFunc: myCustomSharding,
          }
          mc := memcache.New([]string{"10.0.0.1:11211", "10.0.0.2:11211", "10.0.0.3:11212"}, options)
          mc.Set(&memcache.Item{Key: "foo", Value: []byte("my value")})
