@@ -21,8 +21,7 @@ You can use `go get -u -a` for update all installed packages.
          options := memcache.ConnectionOptions{
              Timeout: time.Duration(100) * time.Millisecond,
              MaxIdleConnsPerAddr: 200,
-             ShardFunc: myCustomSharding,
-         }
+             ShardFunc: myCustomSharding}
          mc := memcache.New([]string{"10.0.0.1:11211", "10.0.0.2:11211", "10.0.0.3:11212"}, options)
          mc.Set(&memcache.Item{Key: "foo", Value: []byte("my value")})
 
@@ -31,11 +30,11 @@ You can use `go get -u -a` for update all installed packages.
     }
     
     // example implementation (not for use in production.)
-    func myCustomSharding(key string, addrs []*Addr) {
+    func myCustomSharding(key string, addrs []*memcache.Addr) {
         if len(addrs) == 0 {
-            return nil, ErrNoServers
+            return nil, memcache.ErrNoServers
         }
-        cs := crc32.ChecksumIEEE(stobs(key))
+        cs := crc32.ChecksumIEEE([]byte(key))
         return addrs[cs%uint32(len(addrs))], nil
     }
 
