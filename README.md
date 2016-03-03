@@ -43,8 +43,9 @@ You can use `go get -u -a` for update all installed packages.
 This is a memcache client library for the Go programming language
 (http://golang.org/). This is a high performance fork of the original
 library at http://github.com/bradfitz/gomemcache, from
-http://github.com/rainycape/memcache. The following is a comparison between the
-original library and this one:
+http://github.com/rainycape/memcache, adding connection options to
+instantiation and exposing the sharding algorithm, so you can use your own.
+The following is a comparison between the original library and this one:
 
     benchmark                               old ns/op    new ns/op    delta
     BenchmarkSetGet                            214443       138200  -35.55%
