@@ -12,13 +12,9 @@ import (
 // Implementations must be safely accessible from multiple
 // goroutines.
 type Servers interface {
-	// PickServer selects one server from the ones by
-	// managed by the Servers instance, based on the
-	// given key.
-	PickServer(key string) (*Addr, error)
 	// Servers returns all the servers managed by the
 	// Servers instance.
-	Servers() ([]*Addr, error)
+	Servers() []*Addr
 }
 
 // ServerList is an implementation of the Servers interface.
@@ -34,7 +30,7 @@ type ServerList struct {
 // NewServerList returns an error if any of the received addresses
 // is not valid or fails to resolve, but it doesn't try to connect
 // to the provided servers.
-func NewServerList(servers ...string) (*ServerList, error) {
+func NewServerList(servers []string) (*ServerList, error) {
 	addrs := make([]*Addr, len(servers))
 	for i, server := range servers {
 		if strings.Contains(server, "/") {
@@ -54,14 +50,17 @@ func NewServerList(servers ...string) (*ServerList, error) {
 	return &ServerList{addrs: addrs}, nil
 }
 
-func (s *ServerList) PickServer(key string) (*Addr, error) {
-	if len(s.addrs) == 0 {
+// PickServer selects one server from the ones by
+// managed by the Servers instance, based on the
+// given key.
+func PickServer(key string, addrs []*Addr) (*Addr, error) {
+	if len(addrs) == 0 {
 		return nil, ErrNoServers
 	}
 	cs := crc32.ChecksumIEEE(stobs(key))
-	return s.addrs[cs%uint32(len(s.addrs))], nil
+	return addrs[cs%uint32(len(addrs))], nil
 }
 
-func (s *ServerList) Servers() ([]*Addr, error) {
-	return s.addrs, nil
+func (s *ServerList) Servers() []*Addr {
+	return s.addrs
 }
