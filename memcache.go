@@ -74,12 +74,15 @@ var (
 	bUint64   = binary.BigEndian.Uint64
 )
 
-// DefaultTimeout is the default socket read/write timeout.
-const DefaultTimeout = time.Duration(100) * time.Millisecond
-
 const (
-	buffered            = 8   // arbitrary buffered channel size, for readability
-	maxIdleConnsPerAddr = 100 // TODO(bradfitz): make this configurable?
+	// DefaultTimeout is the default socket read/write timeout.
+	DefaultTimeout = time.Duration(100) * time.Millisecond
+
+	// arbitrary buffered channel size, for readability
+	buffered = 8
+
+	// DefaultMaxIdleConnsPerAddr defines the maximum idle connections per address
+	DefaultMaxIdleConnsPerAddr = 2
 )
 
 type command uint8
@@ -200,28 +203,43 @@ func poolSize() int {
 	return s
 }
 
+// ConnectionOptions defines the connection timeout, max number of idle
+// connections and a sharding function.
+type ConnectionOptions struct {
+	Timeout             time.Duration
+	MaxIdleConnsPerAddr int
+	ShardFunc           func(key string, addrs []*Addr) (*Addr, error)
+}
+
 // New returns a memcache client using the provided server(s)
 // with equal weight, and a optional sharding function.
 // If a server is listed multiple times, it gets a proportional amount of
 // weight.
-func New(server []string, shardFunc func(key string, addrs []*Addr) (*Addr, error)) (*Client, error) {
+func New(server []string, options ConnectionOptions) (*Client, error) {
 	servers, err := NewServerList(server)
 	if err != nil {
 		return nil, err
 	}
-	return NewFromServers(servers, shardFunc), nil
+	return NewFromServers(servers, options), nil
 }
 
 // NewFromServers returns a new Client using the provided Servers.
-func NewFromServers(servers Servers, shardFunc func(key string, addrs []*Addr) (*Addr, error)) *Client {
-	if shardFunc == nil {
-		shardFunc = PickServer
+func NewFromServers(servers Servers, options ConnectionOptions) *Client {
+	if options.Timeout == time.Duration(0) {
+		options.Timeout = DefaultTimeout
 	}
+	if options.ShardFunc == nil {
+		options.ShardFunc = PickServer
+	}
+	if options.MaxIdleConnsPerAddr == 0 {
+		options.MaxIdleConnsPerAddr = DefaultMaxIdleConnsPerAddr
+	}
+
 	return &Client{
-		timeout:        DefaultTimeout,
-		maxIdlePerAddr: maxIdleConnsPerAddr,
+		timeout:        options.Timeout,
+		maxIdlePerAddr: options.MaxIdleConnsPerAddr,
 		servers:        servers,
-		shardFunc:      shardFunc,
+		shardFunc:      options.ShardFunc,
 		freeconn:       make(map[string]chan *conn),
 		bufPool:        make(chan []byte, poolSize()),
 	}
@@ -268,7 +286,7 @@ func (c *Client) MaxIdleConnsPerAddr() int {
 // the default number (currently 2) is used.
 func (c *Client) SetMaxIdleConnsPerAddr(maxIdle int) {
 	if maxIdle == 0 {
-		maxIdle = maxIdleConnsPerAddr
+		maxIdle = DefaultMaxIdleConnsPerAddr
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

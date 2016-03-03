@@ -47,7 +47,7 @@ func newLocalhostServer(tb testing.TB) *Client {
 	}
 	c.Write([]byte("flush_all\r\n"))
 	c.Close()
-	client, err := New([]string{testServer}, nil)
+	client, err := New([]string{testServer}, ConnectionOptions{})
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func newUnixServer(tb testing.TB) (*exec.Cmd, *Client) {
 		}
 		time.Sleep(time.Duration(25*i) * time.Millisecond)
 	}
-	c, err := New([]string{sock}, nil)
+	c, err := New([]string{sock}, ConnectionOptions{})
 	if err != nil {
 		tb.Fatal(err)
 	}
