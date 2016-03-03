@@ -201,22 +201,27 @@ func poolSize() int {
 }
 
 // New returns a memcache client using the provided server(s)
-// with equal weight. If a server is listed multiple times,
-// it gets a proportional amount of weight.
-func New(server ...string) (*Client, error) {
-	servers, err := NewServerList(server...)
+// with equal weight, and a optional sharding function.
+// If a server is listed multiple times, it gets a proportional amount of
+// weight.
+func New(server []string, shardFunc func(key string, addrs []*Addr) (*Addr, error)) (*Client, error) {
+	servers, err := NewServerList(server)
 	if err != nil {
 		return nil, err
 	}
-	return NewFromServers(servers), nil
+	return NewFromServers(servers, shardFunc), nil
 }
 
 // NewFromServers returns a new Client using the provided Servers.
-func NewFromServers(servers Servers) *Client {
+func NewFromServers(servers Servers, shardFunc func(key string, addrs []*Addr) (*Addr, error)) *Client {
+	if shardFunc == nil {
+		shardFunc = PickServer
+	}
 	return &Client{
 		timeout:        DefaultTimeout,
 		maxIdlePerAddr: maxIdleConnsPerAddr,
 		servers:        servers,
+		shardFunc:      shardFunc,
 		freeconn:       make(map[string]chan *conn),
 		bufPool:        make(chan []byte, poolSize()),
 	}
@@ -228,6 +233,7 @@ type Client struct {
 	timeout        time.Duration
 	maxIdlePerAddr int
 	servers        Servers
+	shardFunc      func(key string, addrs []*Addr) (*Addr, error)
 	mu             sync.RWMutex
 	freeconn       map[string]chan *conn
 	bufPool        chan []byte
@@ -456,7 +462,7 @@ func (c *Client) Get(key string) (*Item, error) {
 }
 
 func (c *Client) sendCommand(key string, cmd command, value []byte, casid uint64, extras []byte) (*conn, error) {
-	addr, err := c.servers.PickServer(key)
+	addr, err := c.shardFunc(key, c.servers.Servers())
 	if err != nil {
 		return nil, err
 	}
@@ -609,7 +615,7 @@ func (c *Client) parseItemResponse(key string, cn *conn, release bool) (*Item, e
 func (c *Client) GetMulti(keys []string) (map[string]*Item, error) {
 	keyMap := make(map[*Addr][]string)
 	for _, key := range keys {
-		addr, err := c.servers.PickServer(key)
+		addr, err := c.shardFunc(key, c.servers.Servers())
 		if err != nil {
 			return nil, err
 		}
@@ -745,12 +751,9 @@ func (c *Client) incrDecr(cmd command, key string, delta uint64) (uint64, error)
 // Flush removes all the items in the cache after expiration seconds. If
 // expiration is <= 0, it removes all the items right now.
 func (c *Client) Flush(expiration int) error {
-	servers, err := c.servers.Servers()
+	servers := c.servers.Servers()
 	var failed []*Addr
 	var errs []error
-	if err != nil {
-		return err
-	}
 	var extras []byte
 	if expiration > 0 {
 		extras = make([]byte, 4)
