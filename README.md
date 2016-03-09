@@ -30,7 +30,7 @@ You can use `go get -u -a` for update all installed packages.
     }
     
     // example implementation (not for use in production.)
-    func myCustomSharding(key string, addrs []*memcache.Addr) {
+    func myCustomSharding(key string, addrs []*memcache.Addr) (*Addr, error) {
         if len(addrs) == 0 {
             return nil, memcache.ErrNoServers
         }
